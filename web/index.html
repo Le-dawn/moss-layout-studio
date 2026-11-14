@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MOSS Layout Studio · JSON 提示词画布</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1216'/%3E%3Crect x='7' y='7' width='18' height='7' rx='2' fill='%23a78bfa'/%3E%3Crect x='7' y='17' width='8' height='8' rx='2' fill='%2368a8ff'/%3E%3Crect x='18' y='17' width='7' height='8' rx='2' fill='%233ddc97'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ───────────────────────── 列表 ───────────────────────── -->
+<section class="view" id="view-list">
+  <header class="topbar">
+    <a class="brand" href="#/">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="9" rx="2.5" fill="var(--object)"/><rect x="4" y="16" width="11" height="12" rx="2.5" fill="var(--text)"/><rect x="18" y="16" width="10" height="12" rx="2.5" fill="var(--character)"/></svg>
+      </span>
+      <span class="btext"><b>Layout Studio</b><span>MOSS · JSON PROMPT CANVAS</span></span>
+    </a>
+    <div class="top-actions">
+      <a class="btn ghost" id="link-api" href="/api" target="_blank" rel="noreferrer">REST API</a>
+      <button class="btn" id="btn-import" title="可同时选中草稿 JSON 和旧的 .notes.json（中文会并进图层描述）">导入 JSON</button>
+      <button class="btn primary" id="btn-new">
+        <svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        新建画布
+      </button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="hero">
+      <div class="hero-copy">
+        <h1>布局草稿</h1>
+        <p>把 JSON + bbox 变成能看、能拖、能导出的画布。改完自动存回服务端。</p>
+      </div>
+      <div class="hero-side">
+        <label class="search">
+          <svg viewBox="0 0 16 16" class="i"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.2 10.2 14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input id="search" type="search" placeholder="搜索名称或描述" autocomplete="off" spellcheck="false">
+          <kbd>/</kbd>
+        </label>
+        <div class="stats" id="stats"></div>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="empty" id="empty" hidden>
+      <div class="empty-art" aria-hidden="true">
+        <svg viewBox="0 0 120 90">
+          <rect x="8" y="6" width="104" height="78" rx="4" fill="none" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 4"/>
+          <rect x="22" y="20" width="52" height="12" rx="2" fill="var(--text)" opacity=".5"/>
+          <rect x="22" y="40" width="76" height="30" rx="2" fill="var(--object)" opacity=".28"/>
+          <rect x="60" y="46" width="30" height="34" rx="2" fill="var(--character)" opacity=".4"/>
+        </svg>
+      </div>
+      <h2>还没有草稿</h2>
+      <p>新建一张空白画布，或把已有的 layout JSON 导进来。</p>
+      <div class="empty-actions">
+        <button class="btn primary" id="btn-empty-new">新建空白</button>
+        <button class="btn" id="btn-example">载入示例</button>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <span>坐标 abs / xyxy · 编译后 abs_centralized / yxyx · Klein 0–1000</span>
+      <span id="store-path"></span>
+    </footer>
+  </main>
+</section>
+
+<!-- ───────────────────────── 编辑器 ───────────────────────── -->
+<section class="view" id="view-edit" hidden>
+  <header class="ebar">
+    <button class="icon-btn" id="btn-back" title="返回列表">
+      <svg viewBox="0 0 16 16" class="i"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="ename-wrap">
+      <input id="ename" class="ename" spellcheck="false" aria-label="草稿名称">
+      <div class="save-row"><i class="sdot" id="sdot"></i><span id="save-state">已保存</span><span class="sep">·</span><span id="ename-meta"></span></div>
+    </div>
+
+    <div class="dims">
+      <select id="i-ratio" title="常用比例：换比例会等比缩放所有框">
+        <option value="">比例…</option>
+        <option value="1:1">1:1</option>
+        <option value="4:3">4:3</option>
+        <option value="3:4">3:4</option>
+        <option value="3:2">3:2</option>
+        <option value="2:3">2:3</option>
+        <option value="16:9">16:9</option>
+        <option value="9:16">9:16</option>
+        <option value="21:9">21:9</option>
+        <option value="9:21">9:21</option>
+        <option value="2:1">2:1</option>
+        <option value="1:2">1:2</option>
+        <option value="1:8">1:8 条漫</option>
+      </select>
+      <select id="i-mp" title="目标百万像素">
+        <option value="0">MP…</option>
+        <option value="1">1 MP</option>
+        <option value="1.5">1.5 MP</option>
+        <option value="2">2 MP</option>
+        <option value="4">4 MP</option>
+      </select>
+      <div class="wh"><input id="i-w" type="number" step="16" aria-label="画布宽"><span>×</span><input id="i-h" type="number" step="16" aria-label="画布高"><span class="d16">16 倍</span></div>
+    </div>
+
+    <div class="ebar-actions">
+      <button class="btn" id="b-image" title="叠一张出图，用来对框">
+        <svg viewBox="0 0 16 16" class="i"><rect x="2.5" y="3" width="11" height="10" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m4.5 11 2.6-3 2 2.2 1.4-1.4 1 1.2" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6" r="1" fill="currentColor"/></svg>
+        底图
+      </button>
+      <button class="btn" id="b-save" title="保存 ⌘S">保存</button>
+      <button class="btn primary" id="b-export" title="导出提示词 ⌘E">导出提示词</button>
+    </div>
+  </header>
+
+  <div class="ework">
+    <section class="ecanvas">
+      <div class="scard" id="scard">
+        <button class="scard-head" id="sc-toggle">
+          <span class="slabel">SUMMARY</span>
+          <b>整张图是什么</b>
+          <span class="shint">上面决定整体，下面的框决定局部</span>
+          <span class="chips" id="sum-chips"></span>
+          <svg class="chev" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <div class="scard-body" id="sc-body">
+          <div class="two solo">
+            <label class="field">
+              <span>整图描述（支持中英文） <em id="s-count"></em></span>
+              <textarea id="s-cap" rows="3" placeholder="A warm still-life poster of a hand-drip coffee set on a dark walnut table… / 也可以用中文写"></textarea>
+            </label>
+          </div>
+          <div class="three">
+            <label class="field">
+              <span>meta 体裁 <em>逗号分隔</em></span>
+              <input id="s-meta" type="text" placeholder="poster, still-life photography">
+            </label>
+            <label class="field">
+              <span>canvas 结构</span>
+              <select id="s-canvas">
+                <option value="single">single 一整幅</option>
+                <option value="multi_panel">multi_panel 多格</option>
+                <option value="collage">collage 拼贴</option>
+              </select>
+            </label>
+            <div class="field">
+              <span>palette 主配色</span>
+              <div class="palette"><div class="swatches" id="palette"></div><button class="swadd" id="pal-add" type="button" title="加一个颜色">＋</button></div>
+              <input id="s-pal" class="hexin" type="text" placeholder="#F4EFE6, #4A3327">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stage-wrap">
+        <div class="basebar" id="basebar" hidden>
+          <i></i><span>底图</span><em id="basebar-name"></em>
+          <button class="btn tiny" id="b-image-clear">移除</button>
+        </div>
+        <div class="stage" id="stage">
+          <div class="artboard" id="cv"></div>
+        </div>
+        <div class="stage-tools" aria-label="画布工具">
+          <button class="icon-btn" id="b-undo" title="撤销 ⌘Z">
+            <svg viewBox="0 0 16 16" class="i"><path d="M6.2 3.8 2.6 7.4l3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.9 7.4h6.2a4 4 0 0 1 4 4v.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn" id="b-redo" title="重做 ⇧⌘Z">
+            <svg viewBox="0 0 16 16" class="i"><path d="M9.8 3.8l3.6 3.6-3.6 3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.1 7.4H6.9a4 4 0 0 0-4 4v.9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <span class="vline"></span>
+          <button class="icon-btn" id="b-add" title="加一个文字框">
+            <svg viewBox="0 0 16 16" class="i"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn" id="b-del" title="删除选中 Del">
+            <svg viewBox="0 0 16 16" class="i"><path d="M3 4h10M6.5 4V2.8h3V4M4.6 4l.7 9h5.4l.7-9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="stage-foot">
+          <div class="hints">
+            <span><b>拖动</b>移动</span><span><b>四角</b>缩放</span><span><b>双击</b>改内容</span>
+            <span><b>Del</b>删除</span><span><b>方向键</b>微移</span><span><b>⌘Z</b>撤销</span>
+          </div>
+          <button class="check-chip" id="check-chip" title="打开导出与校验">
+            <i></i><span id="check-text">检查中…</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="eright">
+      <div class="panel-head"><span>图层</span><em id="layer-count"></em></div>
+      <div class="layers" id="layers"></div>
+
+      <div class="ovp" id="ovp">
+        <div class="ovp-head">
+          <span>重叠与前后</span><em id="ovp-count">无重叠</em>
+        </div>
+        <ul id="ovp-list"></ul>
+        <div class="ovp-actions">
+          <p>layout 没有 z 字段：遮挡只能写进 caption。</p>
+          <button class="btn tiny" id="b-ask">复制前后关系询问单</button>
+        </div>
+      </div>
+
+      <div class="inspector" id="inspector">
+        <div class="insp-head">
+          <span class="idx" id="i-num">#1</span>
+          <b id="i-kind">物体</b>
+          <span class="dim" id="i-pos"></span>
+        </div>
+
+        <div id="insp-fields">
+        <div class="seg" id="i-type">
+          <button data-label="object">物体</button>
+          <button data-label="character">人物</button>
+          <button data-label="text">文字</button>
+        </div>
+
+        <label class="field" id="wrap-text" hidden>
+          <span>文字内容 text <em id="c-text"></em></span>
+          <textarea id="f-text" rows="2" placeholder="晨间手冲"></textarea>
+        </label>
+        <label class="field">
+          <span>图层描述（支持中英文） <em>材质、颜色、字体、笔画、前后关系</em></span>
+          <textarea id="f-cap" rows="4" placeholder="A bone-white ceramic cup with a matte glaze… / 骨白陶瓷杯，哑光釉面…"></textarea>
+        </label>
+        <div class="field">
+          <span>位置 bbox <em>px · 左上原点</em></span>
+          <div class="bbox">
+            <label>x1<input id="f-x1" type="number"></label>
+            <label>y1<input id="f-y1" type="number"></label>
+            <label>x2<input id="f-x2" type="number"></label>
+            <label>y2<input id="f-y2" type="number"></label>
+          </div>
+        </div>
+        <label class="field">
+          <span>tags <em>可选，逗号分隔</em></span>
+          <input id="f-tags" type="text" placeholder="ceramic, tableware">
+        </label>
+        <div class="align-row">
+          <button class="btn tiny" data-align="h">水平居中</button>
+          <button class="btn tiny" data-align="v">垂直居中</button>
+          <button class="btn tiny" data-align="fill">铺满画布</button>
+        </div>
+        </div>
+
+        <div class="insp-empty" id="insp-empty" hidden>
+          <p>还没有元素</p>
+          <div><button class="btn tiny" data-add="text">加文字块</button><button class="btn tiny" data-add="ground">加背景块</button></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ───────────────────────── 导出 ───────────────────────── -->
+<dialog id="export-dialog">
+  <div class="sheet">
+    <header class="mhead">
+      <div class="mtitle"><b>导出</b><span id="exp-sub"></span></div>
+      <div class="tabs" id="exp-tabs">
+        <button data-tab="moss" class="on">MOSS 提示词</button>
+        <button data-tab="draft">草稿 JSON</button>
+        <button data-tab="klein">Klein 编辑稿</button>
+      </div>
+      <button class="icon-btn" id="exp-close" title="关闭">✕</button>
+    </header>
+
+    <div class="mbody">
+      <div class="pane" data-pane="moss">
+        <div class="vlist" id="vlist"></div>
+        <pre class="code" id="o-moss"></pre>
+      </div>
+      <div class="pane" data-pane="draft" hidden>
+        <p class="panehint">你正在改的这份草稿：<code>abs</code> + <code>xyxy</code> + 像素，能被服务端和 CLI 原样读回。</p>
+        <pre class="code" id="o-draft"></pre>
+      </div>
+      <div class="pane" data-pane="klein" hidden>
+        <div class="kgate">
+          <b>这张稿是什么任务？</b>
+          <label><input type="radio" name="ktask" value="t2i" checked> 文生图</label>
+          <label><input type="radio" name="ktask" value="edit"> 图像编辑</label>
+          <span class="khint">Klein 只在“图像编辑”时用；文生图请直接用 MOSS 提示词。</span>
+        </div>
+        <div class="kcfg" id="kcfg" hidden>
+          <div class="krow">
+            <label>参考图张数
+              <input id="k-refs" type="number" min="1" max="4" value="1">
+            </label>
+            <label>端口前缀
+              <input id="k-prefix" type="text" value="ref_images.ref_image_" spellcheck="false">
+            </label>
+          </div>
+          <div class="kfrom-head">每一块来自哪张图（target = 本次新造）</div>
+          <div class="kfrom" id="kfrom"></div>
+          <label class="field">
+            <span>指令段 instruction <em>英文；第一次提到对象要带 &lt;id&gt;，每个 id 恰好一次</em></span>
+            <textarea id="k-ins" rows="2" class="mono" placeholder="Change the speech bubble to 'moss-image真的还不错哦'. Everything else stays identical to the source."></textarea>
+          </label>
+          <div class="kidline" id="k-ids"></div>
+        </div>
+        <div class="vlist" id="k-warn"></div>
+        <pre class="code" id="o-klein"></pre>
+        <div class="pmap" id="k-pmap"></div>
+      </div>
+    </div>
+
+    <footer class="mfoot">
+      <span class="mmsg" id="exp-msg"></span>
+      <div class="mfoot-actions">
+        <button class="btn" id="exp-copy">复制</button>
+        <button class="btn" id="exp-download">下载</button>
+        <button class="btn primary" id="exp-done">关闭</button>
+      </div>
+    </footer>
+  </div>
+</dialog>
+
+<!-- 新建 / 重命名等通用弹窗容器 -->
+<dialog id="mini-dialog">
+  <form class="mini-sheet" id="mini-form" method="dialog">
+    <header class="mini-head"><b id="mini-title">标题</b><button type="button" class="icon-btn" id="mini-close">✕</button></header>
+    <div class="mini-body" id="mini-body"></div>
+    <footer class="mini-foot">
+      <button class="btn" type="button" id="mini-cancel">取消</button>
+      <button class="btn primary" type="submit" id="mini-ok">确定</button>
+    </footer>
+  </form>
+</dialog>
+
+<div class="toasts" id="toasts"></div>
+
+<input id="file-json" type="file" accept=".json,application/json" multiple hidden>
+<input id="file-image" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+
+<script type="module" src="/js/main.js"></script>
+</body>
+</html>
